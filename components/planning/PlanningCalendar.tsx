@@ -391,15 +391,24 @@ export function PlanningCalendar() {
             const bothOff = aliOff && samihOff
             const dayEvents = filteredEvents(dateStr)
 
-            return (
-              <div key={di} className={`relative border-r border-neutral-800 last:border-r-0 ${isWknd && !bothOff ? 'bg-neutral-950/30' : ''} ${bothOff ? 'bg-neutral-950/60' : ''}`}>
+            // trainer filter view: is the filtered trainer off today?
+            const filterTrainerOff = filterTrainer !== null && (
+              (filterTrainer === 'ali' && aliOff) || (filterTrainer === 'samih' && samihOff)
+            )
+            const trainerOffColor = filterTrainer === 'ali' ? 'text-sky-700' : 'text-violet-700'
+            const trainerOffName = filterTrainer === 'ali' ? 'Ali' : 'Samih'
 
-                {/* Full day-off overlay (both off) */}
-                {bothOff && (
+            return (
+              <div key={di} className={`relative border-r border-neutral-800 last:border-r-0 ${isWknd && !bothOff && !filterTrainerOff ? 'bg-neutral-950/30' : ''} ${(bothOff || filterTrainerOff) ? 'bg-neutral-950/70' : ''}`}>
+
+                {/* Full day-off overlay (both off OR filtered trainer off) */}
+                {(bothOff || filterTrainerOff) && (
                   <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center gap-2"
-                    style={{ backgroundImage: 'repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(255,255,255,0.012) 8px,rgba(255,255,255,0.012) 16px)' }}>
-                    <MoonStar className="w-5 h-5 text-neutral-700" />
-                    <span className="text-[10px] font-semibold text-neutral-700 uppercase tracking-widest">Day off</span>
+                    style={{ backgroundImage: 'repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(255,255,255,0.018) 8px,rgba(255,255,255,0.018) 16px)' }}>
+                    <MoonStar className={`w-6 h-6 ${filterTrainerOff && !bothOff ? trainerOffColor : 'text-neutral-700'}`} />
+                    <span className={`text-[11px] font-semibold uppercase tracking-widest ${filterTrainerOff && !bothOff ? trainerOffColor : 'text-neutral-700'}`}>
+                      {filterTrainerOff && !bothOff ? `${trainerOffName} off` : 'Day off'}
+                    </span>
                   </div>
                 )}
 
@@ -411,14 +420,14 @@ export function PlanningCalendar() {
                     <div key={s} data-slot={s} style={{ height: SLOT_PX }}
                       className={`border-b transition-colors relative
                         ${isHalfHour ? 'border-dashed border-neutral-800/40' : 'border-neutral-800/60'}
-                        ${bothOff ? 'cursor-not-allowed' : 'cursor-pointer'}
-                        ${selected ? 'bg-white/10' : !bothOff ? 'hover:bg-white/[0.025]' : ''}
+                        ${(bothOff || filterTrainerOff) ? 'cursor-not-allowed' : 'cursor-pointer'}
+                        ${selected ? 'bg-white/10' : (!bothOff && !filterTrainerOff) ? 'hover:bg-white/[0.025]' : ''}
                       `}
-                      onMouseDown={() => { if (!bothOff) onSlotMouseDown(di, s) }}
+                      onMouseDown={() => { if (!bothOff && !filterTrainerOff) onSlotMouseDown(di, s) }}
                       onMouseEnter={() => onSlotMouseEnter(di, s)}
-                      onTouchStart={e => { if (!bothOff) onSlotTouchStart(e, di, s) }}
+                      onTouchStart={e => { if (!bothOff && !filterTrainerOff) onSlotTouchStart(e, di, s) }}
                       onTouchMove={e => onSlotTouchMove(e, di)}
-                      onTouchEnd={() => { if (!bothOff) onSlotTouchEnd(di) }}
+                      onTouchEnd={() => { if (!bothOff && !filterTrainerOff) onSlotTouchEnd(di) }}
                     >
                       {selected && s === Math.min(drag!.startSlot, drag!.endSlot) && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -439,14 +448,18 @@ export function PlanningCalendar() {
                   const height = Math.max(((endMin - startMin) / SLOT_MINUTES) * SLOT_PX - 2, 24)
                   const st = TRAINER_STYLE[ev.trainer] ?? TRAINER_STYLE.ali
                   const trainerOff = (ev.trainer === 'ali' && aliOff) || (ev.trainer === 'samih' && samihOff)
+                  const showOffBadge = trainerOff && filterTrainer === null
                   return (
                     <div key={ev.id} style={{ top, height, left: 3, right: 3 }}
-                      className={`absolute rounded-lg px-2 py-1 cursor-pointer hover:brightness-110 transition-all z-20 overflow-hidden ${st.card} ${trainerOff ? 'opacity-30' : ''}`}
+                      className={`absolute rounded-lg px-2 py-1 cursor-pointer hover:brightness-110 transition-all z-20 overflow-hidden ${st.card} ${trainerOff ? 'opacity-40 grayscale-[40%]' : ''}`}
                       onMouseDown={e => e.stopPropagation()}
                       onClick={e => { e.stopPropagation(); setModal({ open: true, date: new Date(ev.date + 'T00:00:00'), event: ev }) }}>
-                      <p className={`text-[10px] font-bold uppercase tracking-wide leading-none mb-0.5 ${st.name}`}>
-                        {ev.trainer === 'ali' ? 'Ali' : 'Samih'}
-                      </p>
+                      <div className="flex items-center gap-1 leading-none mb-0.5">
+                        <p className={`text-[10px] font-bold uppercase tracking-wide ${st.name}`}>
+                          {ev.trainer === 'ali' ? 'Ali' : 'Samih'}
+                        </p>
+                        {showOffBadge && <MoonStar className="w-2.5 h-2.5 text-neutral-400 shrink-0" />}
+                      </div>
                       {ev.student_name && <p className="text-[11px] font-medium truncate leading-tight">{ev.student_name}</p>}
                       <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                         <span className={`text-[9px] font-semibold px-1 py-0.5 rounded ${CENTER_BADGE[ev.center]}`}>{CENTER_LABELS[ev.center]}</span>
