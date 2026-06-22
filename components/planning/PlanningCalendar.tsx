@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, MoonStar } from 'lucide-react'
-import type { PlanningEvent, EventFormData } from '@/types/planning'
+import type { PlanningEvent, EventFormData, Trainer, Center } from '@/types/planning'
 import { CENTER_LABELS, DAYS_FR, MONTHS_FR, H_START, H_END, SLOT_MINUTES, SLOT_PX } from '@/types/planning'
 import { EventModal } from './EventModal'
 
@@ -45,9 +45,23 @@ const CENTER_BADGE = {
 interface DragState { dayIdx: number; startSlot: number; endSlot: number }
 interface DayOff { id: string; date: string; note?: string }
 
+const TRAINER_FILTERS: { value: Trainer | null; label: string; cls: string; activeCls: string }[] = [
+  { value: null,    label: 'All',   cls: 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500', activeCls: 'bg-white text-neutral-900 border-white' },
+  { value: 'ali',   label: 'Ali',   cls: 'border-neutral-700 text-neutral-400 hover:text-sky-300 hover:border-sky-600',    activeCls: 'bg-sky-500/15 text-sky-300 border-sky-500' },
+  { value: 'samih', label: 'Samih', cls: 'border-neutral-700 text-neutral-400 hover:text-violet-300 hover:border-violet-600', activeCls: 'bg-violet-500/15 text-violet-300 border-violet-500' },
+]
+const CENTER_FILTERS: { value: Center | null; label: string; cls: string; activeCls: string }[] = [
+  { value: null,       label: 'All centers',cls: 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500',     activeCls: 'bg-white text-neutral-900 border-white' },
+  { value: 'city_mall',label: 'City Mall',  cls: 'border-neutral-700 text-neutral-400 hover:text-amber-300 hover:border-amber-600',   activeCls: 'bg-amber-500/15 text-amber-300 border-amber-500' },
+  { value: 'oasis',    label: 'Oasis',      cls: 'border-neutral-700 text-neutral-400 hover:text-emerald-300 hover:border-emerald-600',activeCls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500' },
+  { value: 'mirdif',   label: 'Mirdif',     cls: 'border-neutral-700 text-neutral-400 hover:text-rose-300 hover:border-rose-600',     activeCls: 'bg-rose-500/15 text-rose-300 border-rose-500' },
+]
+
 export function PlanningCalendar() {
   const [events, setEvents] = useState<PlanningEvent[]>([])
   const [dayOffs, setDayOffs] = useState<DayOff[]>([])
+  const [filterTrainer, setFilterTrainer] = useState<Trainer | null>(null)
+  const [filterCenter, setFilterCenter] = useState<Center | null>(null)
   const [weekOffset, setWeekOffset] = useState(0)
   const [activeMobDay, setActiveMobDay] = useState(() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })
   const [isMobile, setIsMobile] = useState(false)
@@ -182,6 +196,14 @@ export function PlanningCalendar() {
   const todayStr = toDateKey(new Date())
   const cols = isMobile ? 1 : 7
 
+  function filteredEvents(dateStr: string) {
+    return events.filter(e =>
+      e.date === dateStr &&
+      (filterTrainer === null || e.trainer === filterTrainer) &&
+      (filterCenter === null || e.center === filterCenter)
+    )
+  }
+
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Nav */}
@@ -209,6 +231,29 @@ export function PlanningCalendar() {
           <span className="text-neutral-600 italic">Drag to select duration</span>
           <span className="text-neutral-700">·</span>
           <div className="flex items-center gap-1.5"><MoonStar className="w-3 h-3 text-neutral-600" /><span className="text-neutral-600">Click day to mark off</span></div>
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex items-center gap-3 mb-3 flex-shrink-0 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold text-neutral-600 uppercase tracking-widest mr-1">Trainer</span>
+          {TRAINER_FILTERS.map(f => (
+            <button key={String(f.value)} onClick={() => setFilterTrainer(f.value)}
+              className={`px-3 py-1 text-xs font-medium rounded-lg border transition-all ${filterTrainer === f.value ? f.activeCls : f.cls}`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="w-px h-4 bg-neutral-800 hidden sm:block" />
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold text-neutral-600 uppercase tracking-widest mr-1">Center</span>
+          {CENTER_FILTERS.map(f => (
+            <button key={String(f.value)} onClick={() => setFilterCenter(f.value)}
+              className={`px-3 py-1 text-xs font-medium rounded-lg border transition-all ${filterCenter === f.value ? f.activeCls : f.cls}`}>
+              {f.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -305,7 +350,7 @@ export function PlanningCalendar() {
             const isTod = dateStr === todayStr
             const isWknd = day.getDay() === 0 || day.getDay() === 6
             const isOff = dayOffs.some(o => o.date === dateStr)
-            const dayEvents = events.filter(e => e.date === dateStr)
+            const dayEvents = filteredEvents(dateStr)
 
             return (
               <div key={di} className={`relative border-r border-neutral-800 last:border-r-0 ${isOff ? 'bg-neutral-950/60' : isWknd ? 'bg-neutral-950/30' : ''}`}>
