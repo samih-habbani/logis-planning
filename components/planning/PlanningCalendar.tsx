@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoonStar } from 'lucide-react'
 import type { PlanningEvent, EventFormData } from '@/types/planning'
 import { CENTER_LABELS, DAYS_FR, MONTHS_FR, H_START, H_END, SLOT_MINUTES, SLOT_PX } from '@/types/planning'
 import { EventModal } from './EventModal'
@@ -25,7 +25,6 @@ function slotToTime(s: number) {
   const totalMin = H_START * 60 + s * SLOT_MINUTES
   return hhmm(Math.floor(totalMin / 60), totalMin % 60)
 }
-
 function weekLabel(mon: Date) {
   const sun = addDays(mon, 6)
   if (mon.getMonth() === sun.getMonth())
@@ -43,22 +42,18 @@ const CENTER_BADGE = {
   mirdif:    'bg-rose-500/20 text-rose-300',
 }
 
-interface DragState {
-  dayIdx: number
-  startSlot: number
-  endSlot: number
-}
+interface DragState { dayIdx: number; startSlot: number; endSlot: number }
+interface DayOff { id: string; date: string; note?: string }
 
 export function PlanningCalendar() {
   const [events, setEvents] = useState<PlanningEvent[]>([])
+  const [dayOffs, setDayOffs] = useState<DayOff[]>([])
   const [weekOffset, setWeekOffset] = useState(0)
   const [activeMobDay, setActiveMobDay] = useState(() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })
   const [isMobile, setIsMobile] = useState(false)
   const [loading, setLoading] = useState(true)
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [modal, setModal] = useState<{ open: boolean; date: Date | null; initialStart?: string; initialEnd?: string; event?: PlanningEvent | null }>({ open: false, date: null })
-
-  // Drag-to-select state
   const [drag, setDrag] = useState<DragState | null>(null)
   const isDragging = useRef(false)
   const touchStartY = useRef<number | null>(null)
@@ -66,18 +61,24 @@ export function PlanningCalendar() {
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(getMonday(addDays(new Date(), weekOffset * 7)), i))
 
-  const fetchEvents = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true)
+    const start = toDateKey(days[0])
+    const end = toDateKey(days[6])
     try {
-      const res = await fetch(`/api/planning?start=${toDateKey(days[0])}&end=${toDateKey(days[6])}`)
-      const data = await res.json()
-      setEvents(Array.isArray(data) ? data : [])
-    } catch { setEvents([]) }
+      const [evRes, doRes] = await Promise.all([
+        fetch(`/api/planning?start=${start}&end=${end}`),
+        fetch(`/api/day-offs?start=${start}&end=${end}`),
+      ])
+      const [evData, doData] = await Promise.all([evRes.json(), doRes.json()])
+      setEvents(Array.isArray(evData) ? evData : [])
+      setDayOffs(Array.isArray(doData) ? doData : [])
+    } catch { setEvents([]); setDayOffs([]) }
     finally { setLoading(false) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekOffset])
 
-  useEffect(() => { fetchEvents() }, [fetchEvents])
+  useEffect(() => { fetchAll() }, [fetchAll])
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 640)
@@ -94,7 +95,6 @@ export function PlanningCalendar() {
     tick(); const t = setInterval(tick, 60_000); return () => clearInterval(t)
   }, [])
 
-  // Cancel drag on mouseup anywhere
   useEffect(() => {
     function onMouseUp() {
       if (!isDragging.current || !drag) { isDragging.current = false; return }
@@ -103,30 +103,33 @@ export function PlanningCalendar() {
       const s1 = Math.max(drag.startSlot, drag.endSlot)
       const day = days[drag.dayIdx]
       setDrag(null)
-      setModal({
-        open: true,
-        date: day,
-        initialStart: slotToTime(s0),
-        initialEnd: slotToTime(s1 + 1),
-        event: null,
-      })
+      setModal({ open: true, date: day, initialStart: slotToTime(s0), initialEnd: slotToTime(s1 + 1), event: null })
     }
     window.addEventListener('mouseup', onMouseUp)
     return () => window.removeEventListener('mouseup', onMouseUp)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drag])
 
+  async function toggleDayOff(dateStr: string) {
+    const existing = dayOffs.find(d => d.date === dateStr)
+    if (existing) {
+      await fetch(`/api/day-offs/${existing.id}`, { method: 'DELETE' })
+    } else {
+      await fetch('/api/day-offs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: dateStr }),
+      })
+    }
+    fetchAll()
+  }
+
   async function handleSave(data: EventFormData) {
     if (!modal.date) return
     const body = {
-      date: toDateKey(modal.date),
-      trainer: data.trainer,
-      center: data.center,
-      start_time: data.start_time,
-      end_time: data.end_time,
-      curriculum: data.curriculum || null,
-      student_name: data.student_name || null,
-      note: data.note || null,
+      date: toDateKey(modal.date), trainer: data.trainer, center: data.center,
+      start_time: data.start_time, end_time: data.end_time,
+      curriculum: data.curriculum || null, student_name: data.student_name || null, note: data.note || null,
     }
     if (modal.event) {
       await fetch(`/api/planning/${modal.event.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -134,60 +137,46 @@ export function PlanningCalendar() {
       await fetch('/api/planning', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     }
     setModal({ open: false, date: null })
-    fetchEvents()
+    fetchAll()
   }
 
   async function handleDelete() {
     if (!modal.event) return
     await fetch(`/api/planning/${modal.event.id}`, { method: 'DELETE' })
     setModal({ open: false, date: null })
-    fetchEvents()
+    fetchAll()
   }
 
-  // Slot interaction handlers
   function onSlotMouseDown(dayIdx: number, slot: number) {
     isDragging.current = true
     setDrag({ dayIdx, startSlot: slot, endSlot: slot })
   }
-
   function onSlotMouseEnter(dayIdx: number, slot: number) {
     if (!isDragging.current || !drag || drag.dayIdx !== dayIdx) return
     setDrag(d => d ? { ...d, endSlot: slot } : d)
   }
-
-  // Touch drag for mobile
   function onSlotTouchStart(e: React.TouchEvent, dayIdx: number, slot: number) {
     touchStartY.current = e.touches[0].clientY
     isDragging.current = true
     setDrag({ dayIdx, startSlot: slot, endSlot: slot })
   }
-
   function onSlotTouchMove(e: React.TouchEvent, dayIdx: number) {
     if (!isDragging.current || !drag) return
-    const touch = e.touches[0]
-    const el = document.elementFromPoint(touch.clientX, touch.clientY)
+    const el = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY)
     const slotAttr = el?.closest('[data-slot]')?.getAttribute('data-slot')
-    if (slotAttr !== null && slotAttr !== undefined) {
-      const s = parseInt(slotAttr)
-      if (drag.dayIdx === dayIdx) setDrag(d => d ? { ...d, endSlot: s } : d)
-    }
+    if (slotAttr != null && drag.dayIdx === dayIdx) setDrag(d => d ? { ...d, endSlot: parseInt(slotAttr) } : d)
   }
-
   function onSlotTouchEnd(dayIdx: number) {
     if (!isDragging.current || !drag) { isDragging.current = false; return }
     isDragging.current = false
     const s0 = Math.min(drag.startSlot, drag.endSlot)
     const s1 = Math.max(drag.startSlot, drag.endSlot)
-    const day = days[drag.dayIdx]
     setDrag(null)
-    setModal({ open: true, date: day, initialStart: slotToTime(s0), initialEnd: slotToTime(s1 + 1), event: null })
+    setModal({ open: true, date: days[dayIdx], initialStart: slotToTime(s0), initialEnd: slotToTime(s1 + 1), event: null })
   }
-
   function isDragSelected(dayIdx: number, slot: number) {
     if (!drag || drag.dayIdx !== dayIdx) return false
-    const s0 = Math.min(drag.startSlot, drag.endSlot)
-    const s1 = Math.max(drag.startSlot, drag.endSlot)
-    return slot >= s0 && slot <= s1
+    return slot >= Math.min(drag.startSlot, drag.endSlot) && slot <= Math.max(drag.startSlot, drag.endSlot)
   }
 
   const todayStr = toDateKey(new Date())
@@ -198,11 +187,11 @@ export function PlanningCalendar() {
       {/* Nav */}
       <div className="flex items-center gap-3 flex-wrap mb-4 flex-shrink-0">
         <div className="flex items-center gap-1 bg-neutral-900 border border-neutral-800 rounded-xl p-1">
-          <button onClick={() => setWeekOffset(o => o - 1)} className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors" aria-label="Semaine précédente">
+          <button onClick={() => setWeekOffset(o => o - 1)} className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors" aria-label="Previous week">
             <ChevronLeft className="w-4 h-4" />
           </button>
           <span className="text-sm font-medium text-white min-w-[190px] text-center px-1 select-none">{weekLabel(days[0])}</span>
-          <button onClick={() => setWeekOffset(o => o + 1)} className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors" aria-label="Semaine suivante">
+          <button onClick={() => setWeekOffset(o => o + 1)} className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors" aria-label="Next week">
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -218,6 +207,8 @@ export function PlanningCalendar() {
           ))}
           <span className="text-neutral-700">·</span>
           <span className="text-neutral-600 italic">Drag to select duration</span>
+          <span className="text-neutral-700">·</span>
+          <div className="flex items-center gap-1.5"><MoonStar className="w-3 h-3 text-neutral-600" /><span className="text-neutral-600">Click day to mark off</span></div>
         </div>
       </div>
 
@@ -227,11 +218,13 @@ export function PlanningCalendar() {
           {days.map((d, i) => {
             const isTod = toDateKey(d) === todayStr
             const isAct = activeMobDay === i
+            const isOff = dayOffs.some(o => o.date === toDateKey(d))
             return (
               <button key={i} onClick={() => setActiveMobDay(i)}
-                className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl transition-all ${isAct ? 'bg-white text-neutral-900' : 'text-neutral-500'}`}>
+                className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl transition-all ${isAct ? 'bg-white text-neutral-900' : 'text-neutral-500'} ${isOff && !isAct ? 'opacity-40' : ''}`}>
                 <span className={`text-[10px] font-semibold uppercase ${isTod && !isAct ? 'text-amber-400' : ''}`}>{DAYS_FR[d.getDay()]}</span>
                 <span className={`text-lg font-bold ${isTod && !isAct ? 'text-amber-400' : ''}`}>{d.getDate()}</span>
+                {isOff && <MoonStar className="w-3 h-3 mt-0.5 text-neutral-500" />}
               </button>
             )
           })}
@@ -258,10 +251,29 @@ export function PlanningCalendar() {
           {days.map((d, i) => {
             if (isMobile && i !== activeMobDay) return null
             const isTod = toDateKey(d) === todayStr
+            const dateStr = toDateKey(d)
+            const isOff = dayOffs.some(o => o.date === dateStr)
             return (
-              <div key={i} className="py-3 text-center border-r border-neutral-800 last:border-r-0">
-                <div className={`text-[10px] font-bold uppercase tracking-widest ${isTod ? 'text-amber-400' : 'text-neutral-500'}`}>{DAYS_FR[d.getDay()]}</div>
-                <div className={`text-xl font-bold mt-0.5 ${isTod ? 'text-amber-400' : 'text-white'}`}>{d.getDate()}</div>
+              <div key={i}
+                className={`py-2.5 text-center border-r border-neutral-800 last:border-r-0 cursor-pointer group transition-colors ${isOff ? 'bg-neutral-800/60' : 'hover:bg-neutral-800/30'}`}
+                onClick={() => toggleDayOff(dateStr)}
+                title={isOff ? 'Click to remove day off' : 'Click to mark as day off'}
+              >
+                <div className={`text-[10px] font-bold uppercase tracking-widest ${isOff ? 'text-neutral-600' : isTod ? 'text-amber-400' : 'text-neutral-500'}`}>
+                  {DAYS_FR[d.getDay()]}
+                </div>
+                <div className={`text-xl font-bold mt-0.5 ${isOff ? 'text-neutral-600' : isTod ? 'text-amber-400' : 'text-white'}`}>
+                  {d.getDate()}
+                </div>
+                {isOff
+                  ? <div className="flex items-center justify-center gap-1 mt-1">
+                      <MoonStar className="w-3 h-3 text-neutral-500" />
+                      <span className="text-[9px] text-neutral-500 font-medium uppercase tracking-wide">Day off</span>
+                    </div>
+                  : <div className="h-4 mt-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-[9px] text-neutral-600">mark off</span>
+                    </div>
+                }
               </div>
             )
           })}
@@ -292,10 +304,21 @@ export function PlanningCalendar() {
             const dateStr = toDateKey(day)
             const isTod = dateStr === todayStr
             const isWknd = day.getDay() === 0 || day.getDay() === 6
+            const isOff = dayOffs.some(o => o.date === dateStr)
             const dayEvents = events.filter(e => e.date === dateStr)
 
             return (
-              <div key={di} className={`relative border-r border-neutral-800 last:border-r-0 ${isWknd ? 'bg-neutral-950/30' : ''}`}>
+              <div key={di} className={`relative border-r border-neutral-800 last:border-r-0 ${isOff ? 'bg-neutral-950/60' : isWknd ? 'bg-neutral-950/30' : ''}`}>
+
+                {/* Day-off overlay */}
+                {isOff && (
+                  <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center gap-2"
+                    style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(255,255,255,0.015) 8px, rgba(255,255,255,0.015) 16px)' }}>
+                    <MoonStar className="w-6 h-6 text-neutral-700" />
+                    <span className="text-[10px] font-semibold text-neutral-700 uppercase tracking-widest">Day off</span>
+                  </div>
+                )}
+
                 {/* Slot cells */}
                 {Array.from({ length: SLOT_COUNT }, (_, s) => {
                   const selected = isDragSelected(di, s)
@@ -305,21 +328,17 @@ export function PlanningCalendar() {
                       key={s}
                       data-slot={s}
                       style={{ height: SLOT_PX }}
-                      className={`border-b cursor-pointer transition-colors relative
+                      className={`border-b transition-colors relative
                         ${isHalfHour ? 'border-dashed border-neutral-800/40' : 'border-neutral-800/60'}
-                        ${selected ? 'bg-white/10' : 'hover:bg-white/[0.025]'}
+                        ${isOff ? 'cursor-not-allowed' : 'cursor-pointer'}
+                        ${selected ? 'bg-white/10' : !isOff ? 'hover:bg-white/[0.025]' : ''}
                       `}
-                      onMouseDown={() => onSlotMouseDown(di, s)}
+                      onMouseDown={() => { if (!isOff) onSlotMouseDown(di, s) }}
                       onMouseEnter={() => onSlotMouseEnter(di, s)}
-                      onTouchStart={e => onSlotTouchStart(e, di, s)}
+                      onTouchStart={e => { if (!isOff) onSlotTouchStart(e, di, s) }}
                       onTouchMove={e => onSlotTouchMove(e, di)}
-                      onTouchEnd={() => onSlotTouchEnd(di)}
+                      onTouchEnd={() => { if (!isOff) onSlotTouchEnd(di) }}
                     >
-                      {/* Plus hint on hover (only when not dragging) */}
-                      {!drag && (
-                        <span className="hidden group-hover:flex absolute inset-0 items-center justify-center text-neutral-700 text-base select-none pointer-events-none">+</span>
-                      )}
-                      {/* Drag selection label on first selected slot */}
                       {selected && s === Math.min(drag!.startSlot, drag!.endSlot) && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                           <span className="text-[10px] font-semibold text-white/70 bg-white/10 px-1.5 py-0.5 rounded">
@@ -340,7 +359,7 @@ export function PlanningCalendar() {
                   const s = TRAINER_STYLE[ev.trainer] ?? TRAINER_STYLE.ali
                   return (
                     <div key={ev.id} style={{ top, height, left: 3, right: 3 }}
-                      className={`absolute rounded-lg px-2 py-1 cursor-pointer hover:brightness-110 transition-all z-10 overflow-hidden ${s.card}`}
+                      className={`absolute rounded-lg px-2 py-1 cursor-pointer hover:brightness-110 transition-all z-20 overflow-hidden ${s.card}`}
                       onMouseDown={e => e.stopPropagation()}
                       onClick={e => { e.stopPropagation(); setModal({ open: true, date: new Date(ev.date + 'T00:00:00'), event: ev }) }}>
                       <p className={`text-[10px] font-bold uppercase tracking-wide leading-none mb-0.5 ${s.name}`}>
@@ -376,11 +395,7 @@ export function PlanningCalendar() {
       )}
 
       <EventModal
-        open={modal.open}
-        date={modal.date}
-        initialStart={modal.initialStart}
-        initialEnd={modal.initialEnd}
-        event={modal.event}
+        open={modal.open} date={modal.date} initialStart={modal.initialStart} initialEnd={modal.initialEnd} event={modal.event}
         onClose={() => setModal({ open: false, date: null })}
         onSave={handleSave}
         onDelete={modal.event ? handleDelete : undefined}
