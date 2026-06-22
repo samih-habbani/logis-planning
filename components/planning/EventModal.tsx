@@ -9,6 +9,7 @@ interface Props {
   open: boolean
   date: Date | null
   initialStart?: string
+  initialEnd?: string
   event?: PlanningEvent | null
   onClose: () => void
   onSave: (data: EventFormData) => Promise<void>
@@ -38,7 +39,7 @@ const CENTER_CFG = {
   mirdif:    { sel: 'ring-rose-500 bg-rose-500/10 text-rose-300' },
 }
 
-export function EventModal({ open, date, initialStart, event, onClose, onSave, onDelete }: Props) {
+export function EventModal({ open, date, initialStart, initialEnd, event, onClose, onSave, onDelete }: Props) {
   const [form, setForm] = useState<EventFormData>({
     trainer: null, center: null,
     start_time: `${String(H_START).padStart(2, '0')}:00`,
@@ -63,15 +64,15 @@ export function EventModal({ open, date, initialStart, event, onClose, onSave, o
       })
     } else {
       const start = initialStart ?? `${String(H_START).padStart(2, '0')}:00`
-      const [h, m] = start.split(':').map(Number)
-      const endMin = h * 60 + m + 60
-      const endH = Math.min(Math.floor(endMin / 60), H_END)
-      const endM = endMin % 60
-      setForm({
-        trainer: null, center: null, start_time: start,
-        end_time: `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`,
-        curriculum: '', student_name: '', note: '',
-      })
+      let end = initialEnd
+      if (!end) {
+        const [h, m] = start.split(':').map(Number)
+        const endMin = h * 60 + m + 60
+        const endH = Math.min(Math.floor(endMin / 60), H_END)
+        const endM = endMin % 60
+        end = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+      }
+      setForm({ trainer: null, center: null, start_time: start, end_time: end, curriculum: '', student_name: '', note: '' })
     }
     setError(null)
     setTimeout(() => firstBtnRef.current?.focus(), 80)
