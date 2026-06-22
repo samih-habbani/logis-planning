@@ -277,7 +277,10 @@ export function PlanningCalendar() {
               const m = totalMin % 60
               return (
                 <div key={s} style={{ height: SLOT_PX }} className="border-b border-neutral-800/50 flex items-start justify-end pr-2 pt-1">
-                  {m === 0 && <span className="text-[10px] text-neutral-600">{hhmm(h, 0)}</span>}
+                  {m === 0
+                    ? <span className="text-[10px] text-neutral-500 font-medium">{hhmm(h, 0)}</span>
+                    : <span className="text-[9px] text-neutral-700">:30</span>
+                  }
                 </div>
               )
             })}
