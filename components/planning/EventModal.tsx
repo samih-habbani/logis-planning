@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { X, Trash2 } from 'lucide-react'
-import type { PlanningEvent, EventFormData, Center } from '@/types/planning'
-import type { Trainer } from '@/types/planning'
-import { CENTER_LABELS, DAYS_FR, MONTHS_FR, H_START, H_END } from '@/types/planning'
+import type { PlanningEvent, EventFormData, Center, TrainerRecord } from '@/types/planning'
+import { CENTER_LABELS, COLOR_MAP, FALLBACK_COLOR, DAYS_FR, MONTHS_FR, H_START, H_END } from '@/types/planning'
 
 interface Props {
   open: boolean
@@ -12,6 +11,7 @@ interface Props {
   initialStart?: string
   initialEnd?: string
   event?: PlanningEvent | null
+  trainers: TrainerRecord[]
   onClose: () => void
   onSave: (data: EventFormData) => Promise<void>
   onDelete?: () => Promise<void>
@@ -30,24 +30,21 @@ function buildTimeOptions() {
 
 const TIME_OPTIONS = buildTimeOptions()
 
-const TRAINER_CFG: Record<Trainer, { label: string; sel: string }> = {
-  ali:   { label: 'Ali',   sel: 'ring-sky-500 bg-sky-500/10 text-sky-300' },
-  samih: { label: 'Samih', sel: 'ring-violet-500 bg-violet-500/10 text-violet-300' },
-  both:  { label: 'Both',  sel: 'ring-teal-500 bg-teal-500/10 text-teal-300' },
-}
-const CENTER_CFG = {
+const CENTER_CFG: Record<Center, { sel: string }> = {
   city_mall: { sel: 'ring-amber-500 bg-amber-500/10 text-amber-300' },
   oasis:     { sel: 'ring-emerald-500 bg-emerald-500/10 text-emerald-300' },
   mirdif:    { sel: 'ring-rose-500 bg-rose-500/10 text-rose-300' },
 }
 
-export function EventModal({ open, date, initialStart, initialEnd, event, onClose, onSave, onDelete }: Props) {
-  const [form, setForm] = useState<EventFormData>({
-    trainer: null, center: null,
-    start_time: `${String(H_START).padStart(2, '0')}:00`,
-    end_time: `${String(H_START + 1).padStart(2, '0')}:00`,
-    curriculum: '', lesson: '', student_name: '', note: '',
-  })
+const BLANK_FORM: EventFormData = {
+  trainer: null, center: null,
+  start_time: `${String(H_START).padStart(2, '0')}:00`,
+  end_time: `${String(H_START + 1).padStart(2, '0')}:00`,
+  curriculum: '', lesson: '', student_name: '', note: '',
+}
+
+export function EventModal({ open, date, initialStart, initialEnd, event, trainers, onClose, onSave, onDelete }: Props) {
+  const [form, setForm] = useState<EventFormData>(BLANK_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const firstBtnRef = useRef<HTMLButtonElement>(null)
@@ -75,11 +72,11 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
         const endM = endMin % 60
         end = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
       }
-      setForm({ trainer: null, center: null, start_time: start, end_time: end, curriculum: '', lesson: '', student_name: '', note: '' })
+      setForm({ ...BLANK_FORM, start_time: start, end_time: end })
     }
     setError(null)
     setTimeout(() => firstBtnRef.current?.focus(), 80)
-  }, [open, event, initialStart])
+  }, [open, event, initialStart, initialEnd])
 
   function set<K extends keyof EventFormData>(k: K, v: EventFormData[K]) {
     setForm(f => ({ ...f, [k]: v }))
@@ -131,15 +128,27 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
           {/* Trainer */}
           <div>
             <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Trainer</p>
-            <div className="grid grid-cols-3 gap-2">
-              {(['ali', 'samih', 'both'] as Trainer[]).map((t, i) => (
-                <button key={t} ref={i === 0 ? firstBtnRef : undefined} onClick={() => set('trainer', t)}
-                  className={`py-2.5 rounded-lg text-sm font-semibold transition-all ring-1 ${
-                    form.trainer === t ? TRAINER_CFG[t].sel : 'ring-neutral-700 text-neutral-400 hover:ring-neutral-500 hover:text-white'
-                  }`}>
-                  {TRAINER_CFG[t].label}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              {trainers.map((t, i) => {
+                const c = COLOR_MAP[t.color] ?? FALLBACK_COLOR
+                return (
+                  <button key={t.name} ref={i === 0 ? firstBtnRef : undefined}
+                    onClick={() => set('trainer', t.name)}
+                    className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ring-1 capitalize ${
+                      form.trainer === t.name ? c.selRing : 'ring-neutral-700 text-neutral-400 hover:ring-neutral-500 hover:text-white'
+                    }`}>
+                    {t.name}
+                  </button>
+                )
+              })}
+              {/* Both = all trainers */}
+              <button
+                onClick={() => set('trainer', 'both')}
+                className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ring-1 ${
+                  form.trainer === 'both' ? 'ring-neutral-400 bg-neutral-700 text-white' : 'ring-neutral-700 text-neutral-400 hover:ring-neutral-500 hover:text-white'
+                }`}>
+                All trainers
+              </button>
             </div>
           </div>
 
@@ -212,7 +221,7 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
         {/* Footer */}
         <div className="px-5 py-3 border-t border-neutral-800 flex items-center gap-2">
           {event && onDelete && (
-            <button onClick={handleDelete} className="p-2 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-colors" aria-label="Supprimer">
+            <button onClick={handleDelete} className="p-2 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-colors" aria-label="Delete">
               <Trash2 className="w-4 h-4" />
             </button>
           )}

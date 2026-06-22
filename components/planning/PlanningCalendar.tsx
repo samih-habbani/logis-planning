@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, MoonStar } from 'lucide-react'
-import type { PlanningEvent, EventFormData, Trainer, Center } from '@/types/planning'
-import { CENTER_LABELS, DAYS_FR, MONTHS_FR, H_START, H_END, SLOT_MINUTES, SLOT_PX } from '@/types/planning'
+import { ChevronLeft, ChevronRight, MoonStar, UserPlus } from 'lucide-react'
+import type { PlanningEvent, EventFormData, Center, TrainerRecord } from '@/types/planning'
+import { CENTER_LABELS, COLOR_MAP, FALLBACK_COLOR, DAYS_FR, MONTHS_FR, H_START, H_END, SLOT_MINUTES, SLOT_PX } from '@/types/planning'
 import { EventModal } from './EventModal'
+import { AddTrainerModal } from './AddTrainerModal'
 
 const SLOT_COUNT = ((H_END - H_START) * 60) / SLOT_MINUTES
 
@@ -32,36 +33,26 @@ function weekLabel(mon: Date) {
   return `${mon.getDate()} ${MONTHS_FR[mon.getMonth()]} – ${sun.getDate()} ${MONTHS_FR[sun.getMonth()]} ${mon.getFullYear()}`
 }
 
-const TRAINER_STYLE = {
-  ali:   { card: 'bg-sky-500/10 border border-sky-500/30 text-sky-200',          name: 'text-sky-400' },
-  samih: { card: 'bg-violet-500/10 border border-violet-500/30 text-violet-200', name: 'text-violet-400' },
-  both:  { card: 'bg-teal-500/10 border border-teal-500/30 text-teal-200',       name: 'text-teal-400' },
-}
-const CENTER_BADGE = {
+const CENTER_BADGE: Record<Center, string> = {
   city_mall: 'bg-amber-500/20 text-amber-300',
   oasis:     'bg-emerald-500/20 text-emerald-300',
   mirdif:    'bg-rose-500/20 text-rose-300',
 }
-
-interface DragState { dayIdx: number; startSlot: number; endSlot: number }
-interface DayOff { id: string; date: string; trainer: Trainer }
-
-const TRAINER_FILTERS: { value: Trainer | null; label: string; cls: string; activeCls: string }[] = [
-  { value: null,    label: 'All',   cls: 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500',         activeCls: 'bg-white text-neutral-900 border-white' },
-  { value: 'ali',   label: 'Ali',   cls: 'border-neutral-700 text-neutral-400 hover:text-sky-300 hover:border-sky-600',           activeCls: 'bg-sky-500/15 text-sky-300 border-sky-500' },
-  { value: 'samih', label: 'Samih', cls: 'border-neutral-700 text-neutral-400 hover:text-violet-300 hover:border-violet-600',     activeCls: 'bg-violet-500/15 text-violet-300 border-violet-500' },
-]
 const CENTER_FILTERS: { value: Center | null; label: string; cls: string; activeCls: string }[] = [
-  { value: null,        label: 'All centers', cls: 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500',      activeCls: 'bg-white text-neutral-900 border-white' },
+  { value: null,        label: 'All centers', cls: 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500',       activeCls: 'bg-white text-neutral-900 border-white' },
   { value: 'city_mall', label: 'City Mall',   cls: 'border-neutral-700 text-neutral-400 hover:text-amber-300 hover:border-amber-600',    activeCls: 'bg-amber-500/15 text-amber-300 border-amber-500' },
   { value: 'oasis',     label: 'Oasis',       cls: 'border-neutral-700 text-neutral-400 hover:text-emerald-300 hover:border-emerald-600',activeCls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500' },
   { value: 'mirdif',    label: 'Mirdif',      cls: 'border-neutral-700 text-neutral-400 hover:text-rose-300 hover:border-rose-600',      activeCls: 'bg-rose-500/15 text-rose-300 border-rose-500' },
 ]
 
+interface DragState { dayIdx: number; startSlot: number; endSlot: number }
+interface DayOff { id: string; date: string; trainer: string }
+
 export function PlanningCalendar() {
+  const [trainers, setTrainers] = useState<TrainerRecord[]>([])
   const [events, setEvents] = useState<PlanningEvent[]>([])
   const [dayOffs, setDayOffs] = useState<DayOff[]>([])
-  const [filterTrainer, setFilterTrainer] = useState<Trainer | null>(null)
+  const [filterTrainer, setFilterTrainer] = useState<string | null>(null)
   const [filterCenter, setFilterCenter] = useState<Center | null>(null)
   const [weekOffset, setWeekOffset] = useState(0)
   const [activeMobDay, setActiveMobDay] = useState(() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })
@@ -69,6 +60,7 @@ export function PlanningCalendar() {
   const [loading, setLoading] = useState(true)
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [modal, setModal] = useState<{ open: boolean; date: Date | null; initialStart?: string; initialEnd?: string; event?: PlanningEvent | null }>({ open: false, date: null })
+  const [addTrainerOpen, setAddTrainerOpen] = useState(false)
   const [dayOffPopup, setDayOffPopup] = useState<string | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const isDragging = useRef(false)
@@ -76,6 +68,24 @@ export function PlanningCalendar() {
   const popupRef = useRef<HTMLDivElement>(null)
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(getMonday(addDays(new Date(), weekOffset * 7)), i))
+
+  function getTrainerStyle(trainerName: string) {
+    if (trainerName === 'both') return { card: 'bg-neutral-700/30 border border-neutral-600/50 text-neutral-200', nameText: 'text-neutral-400' }
+    const rec = trainers.find(t => t.name === trainerName)
+    const c = COLOR_MAP[rec?.color ?? ''] ?? FALLBACK_COLOR
+    return { card: c.card, nameText: c.nameText }
+  }
+
+  function getTrainerColor(trainerName: string) {
+    const rec = trainers.find(t => t.name === trainerName)
+    return COLOR_MAP[rec?.color ?? ''] ?? FALLBACK_COLOR
+  }
+
+  const fetchTrainers = useCallback(async () => {
+    const res = await fetch('/api/trainers')
+    const data = await res.json()
+    setTrainers(Array.isArray(data) ? data : [])
+  }, [])
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -94,6 +104,7 @@ export function PlanningCalendar() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekOffset])
 
+  useEffect(() => { fetchTrainers() }, [fetchTrainers])
   useEffect(() => { fetchAll() }, [fetchAll])
 
   useEffect(() => {
@@ -111,18 +122,14 @@ export function PlanningCalendar() {
     tick(); const t = setInterval(tick, 60_000); return () => clearInterval(t)
   }, [])
 
-  // Close popup on outside click
   useEffect(() => {
     function onDown(e: MouseEvent) {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
-        setDayOffPopup(null)
-      }
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) setDayOffPopup(null)
     }
     if (dayOffPopup) document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [dayOffPopup])
 
-  // Cancel drag on mouseup anywhere
   useEffect(() => {
     function onMouseUp() {
       if (!isDragging.current || !drag) { isDragging.current = false; return }
@@ -138,15 +145,15 @@ export function PlanningCalendar() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drag])
 
-  async function toggleTrainerDayOff(dateStr: string, trainer: Trainer) {
-    const existing = dayOffs.find(d => d.date === dateStr && d.trainer === trainer)
+  async function toggleTrainerDayOff(dateStr: string, trainerName: string) {
+    const existing = dayOffs.find(d => d.date === dateStr && d.trainer === trainerName)
     if (existing) {
       await fetch(`/api/day-offs/${existing.id}`, { method: 'DELETE' })
     } else {
       await fetch('/api/day-offs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: dateStr, trainer }),
+        body: JSON.stringify({ date: dateStr, trainer: trainerName }),
       })
     }
     fetchAll()
@@ -157,7 +164,8 @@ export function PlanningCalendar() {
     const body = {
       date: toDateKey(modal.date), trainer: data.trainer, center: data.center,
       start_time: data.start_time, end_time: data.end_time,
-      curriculum: data.curriculum || null, lesson: data.lesson || null, student_name: data.student_name || null, note: data.note || null,
+      curriculum: data.curriculum || null, lesson: data.lesson || null,
+      student_name: data.student_name || null, note: data.note || null,
     }
     if (modal.event) {
       await fetch(`/api/planning/${modal.event.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -181,8 +189,7 @@ export function PlanningCalendar() {
     setDrag(d => d ? { ...d, endSlot: slot } : d)
   }
   function onSlotTouchStart(e: React.TouchEvent, dayIdx: number, slot: number) {
-    isDragging.current = true; setDrag({ dayIdx, startSlot: slot, endSlot: slot })
-    void e
+    isDragging.current = true; setDrag({ dayIdx, startSlot: slot, endSlot: slot }); void e
   }
   function onSlotTouchMove(e: React.TouchEvent, dayIdx: number) {
     if (!isDragging.current || !drag) return
@@ -211,6 +218,10 @@ export function PlanningCalendar() {
     )
   }
 
+  function isTrainerOff(dateStr: string, trainerName: string) {
+    return dayOffs.some(o => o.date === dateStr && o.trainer === trainerName)
+  }
+
   const todayStr = toDateKey(new Date())
   const cols = isMobile ? 1 : 7
 
@@ -233,21 +244,39 @@ export function PlanningCalendar() {
         >
           Today
         </button>
-        <div className="hidden sm:flex items-center gap-4 ml-auto text-xs text-neutral-500 flex-wrap">
-          <div className="flex items-center gap-1.5"><MoonStar className="w-3 h-3" /><span>Click day header to mark day off</span></div>
+        <div className="ml-auto flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-1.5 text-xs text-neutral-500">
+            <MoonStar className="w-3 h-3" /><span>Click day to mark off</span>
+          </div>
+          <button
+            onClick={() => setAddTrainerOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500 rounded-lg transition-colors"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            Add trainer
+          </button>
         </div>
       </div>
 
       {/* Filter bar */}
       <div className="flex items-center gap-3 mb-3 flex-shrink-0 flex-wrap">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[10px] font-semibold text-neutral-600 uppercase tracking-widest mr-1">Trainer</span>
-          {TRAINER_FILTERS.map(f => (
-            <button key={String(f.value)} onClick={() => setFilterTrainer(f.value)}
-              className={`px-3 py-1 text-xs font-medium rounded-lg border transition-all ${filterTrainer === f.value ? f.activeCls : f.cls}`}>
-              {f.label}
-            </button>
-          ))}
+          {/* All button */}
+          <button onClick={() => setFilterTrainer(null)}
+            className={`px-3 py-1 text-xs font-medium rounded-lg border transition-all ${filterTrainer === null ? 'bg-white text-neutral-900 border-white' : 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500'}`}>
+            All
+          </button>
+          {trainers.map(t => {
+            const c = COLOR_MAP[t.color] ?? FALLBACK_COLOR
+            const isActive = filterTrainer === t.name
+            return (
+              <button key={t.name} onClick={() => setFilterTrainer(t.name)}
+                className={`px-3 py-1 text-xs font-medium rounded-lg border transition-all capitalize ${isActive ? c.filterActive : `border-neutral-700 text-neutral-400 ${c.filterHover}`}`}>
+                {t.name}
+              </button>
+            )
+          })}
         </div>
         <div className="w-px h-4 bg-neutral-800 hidden sm:block" />
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -302,13 +331,11 @@ export function PlanningCalendar() {
             if (isMobile && i !== activeMobDay) return null
             const isTod = toDateKey(d) === todayStr
             const dateStr = toDateKey(d)
-            const aliOff = dayOffs.some(o => o.date === dateStr && o.trainer === 'ali')
-            const samihOff = dayOffs.some(o => o.date === dateStr && o.trainer === 'samih')
+            const offTrainers = trainers.filter(t => isTrainerOff(dateStr, t.name))
             const isPopupOpen = dayOffPopup === dateStr
 
             return (
               <div key={i} className="relative border-r border-neutral-800 last:border-r-0">
-                {/* Header cell */}
                 <div
                   className={`py-2 text-center cursor-pointer transition-colors group ${isPopupOpen ? 'bg-neutral-800' : 'hover:bg-neutral-800/40'}`}
                   onClick={e => { e.stopPropagation(); setDayOffPopup(isPopupOpen ? null : dateStr) }}
@@ -319,11 +346,16 @@ export function PlanningCalendar() {
                   <div className={`text-xl font-bold mt-0.5 ${isTod ? 'text-amber-400' : 'text-white'}`}>
                     {d.getDate()}
                   </div>
-                  {/* Day-off badges */}
-                  {(aliOff || samihOff) ? (
+                  {offTrainers.length > 0 ? (
                     <div className="flex items-center justify-center gap-1 mt-1 flex-wrap px-1">
-                      {aliOff && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-500/20 text-sky-400 flex items-center gap-0.5"><MoonStar className="w-2.5 h-2.5" />Ali</span>}
-                      {samihOff && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-400 flex items-center gap-0.5"><MoonStar className="w-2.5 h-2.5" />Samih</span>}
+                      {offTrainers.map(t => {
+                        const c = COLOR_MAP[t.color] ?? FALLBACK_COLOR
+                        return (
+                          <span key={t.name} className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 ${c.popupActive}`}>
+                            <MoonStar className="w-2.5 h-2.5" /><span className="capitalize">{t.name}</span>
+                          </span>
+                        )
+                      })}
                     </div>
                   ) : (
                     <div className="h-5 mt-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -334,23 +366,20 @@ export function PlanningCalendar() {
 
                 {/* Day-off popup */}
                 {isPopupOpen && (
-                  <div ref={popupRef} className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-neutral-800 border border-neutral-700 rounded-xl shadow-xl p-3 w-44"
+                  <div ref={popupRef} className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-neutral-800 border border-neutral-700 rounded-xl shadow-xl p-3 w-48"
                     onClick={e => e.stopPropagation()}>
                     <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Mark as day off</p>
                     <div className="flex flex-col gap-1.5">
-                      {(['ali', 'samih'] as Trainer[]).map(t => {
-                        const isOff = dayOffs.some(o => o.date === dateStr && o.trainer === t)
+                      {trainers.map(t => {
+                        const off = isTrainerOff(dateStr, t.name)
+                        const c = COLOR_MAP[t.color] ?? FALLBACK_COLOR
                         return (
-                          <button key={t} onClick={() => toggleTrainerDayOff(dateStr, t)}
-                            className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all border ${
-                              isOff
-                                ? t === 'ali' ? 'bg-sky-500/15 border-sky-500/50 text-sky-300' : 'bg-violet-500/15 border-violet-500/50 text-violet-300'
-                                : 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500'
+                          <button key={t.name} onClick={() => toggleTrainerDayOff(dateStr, t.name)}
+                            className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all border capitalize ${
+                              off ? c.popupActive : 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500'
                             }`}>
-                            <span>{t === 'ali' ? 'Ali' : 'Samih'}</span>
-                            {isOff
-                              ? <MoonStar className="w-3.5 h-3.5" />
-                              : <span className="text-neutral-600 text-[10px]">off</span>}
+                            <span>{t.name}</span>
+                            {off ? <MoonStar className="w-3.5 h-3.5" /> : <span className="text-neutral-600 text-[10px]">off</span>}
                           </button>
                         )
                       })}
@@ -387,28 +416,23 @@ export function PlanningCalendar() {
             const dateStr = toDateKey(day)
             const isTod = dateStr === todayStr
             const isWknd = day.getDay() === 0 || day.getDay() === 6
-            const aliOff = dayOffs.some(o => o.date === dateStr && o.trainer === 'ali')
-            const samihOff = dayOffs.some(o => o.date === dateStr && o.trainer === 'samih')
-            const bothOff = aliOff && samihOff
+            const allOff = trainers.length > 0 && trainers.every(t => isTrainerOff(dateStr, t.name))
+            const filterTrainerOff = filterTrainer !== null && isTrainerOff(dateStr, filterTrainer)
             const dayEvents = filteredEvents(dateStr)
+            const blockSlots = allOff || filterTrainerOff
 
-            // trainer filter view: is the filtered trainer off today?
-            const filterTrainerOff = filterTrainer !== null && (
-              (filterTrainer === 'ali' && aliOff) || (filterTrainer === 'samih' && samihOff)
-            )
-            const trainerOffColor = filterTrainer === 'ali' ? 'text-sky-700' : 'text-violet-700'
-            const trainerOffName = filterTrainer === 'ali' ? 'Ali' : 'Samih'
+            const filterTrainerColor = filterTrainer ? (COLOR_MAP[(trainers.find(t => t.name === filterTrainer)?.color ?? '')] ?? FALLBACK_COLOR) : null
 
             return (
-              <div key={di} className={`relative border-r border-neutral-800 last:border-r-0 ${isWknd && !bothOff && !filterTrainerOff ? 'bg-neutral-950/30' : ''} ${(bothOff || filterTrainerOff) ? 'bg-neutral-950/70' : ''}`}>
+              <div key={di} className={`relative border-r border-neutral-800 last:border-r-0 ${isWknd && !blockSlots ? 'bg-neutral-950/30' : ''} ${blockSlots ? 'bg-neutral-950/70' : ''}`}>
 
-                {/* Full day-off overlay (both off OR filtered trainer off) */}
-                {(bothOff || filterTrainerOff) && (
+                {/* Full day-off overlay */}
+                {blockSlots && (
                   <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center gap-2"
                     style={{ backgroundImage: 'repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(255,255,255,0.018) 8px,rgba(255,255,255,0.018) 16px)' }}>
-                    <MoonStar className={`w-6 h-6 ${filterTrainerOff && !bothOff ? trainerOffColor : 'text-neutral-700'}`} />
-                    <span className={`text-[11px] font-semibold uppercase tracking-widest ${filterTrainerOff && !bothOff ? trainerOffColor : 'text-neutral-700'}`}>
-                      {filterTrainerOff && !bothOff ? `${trainerOffName} off` : 'Day off'}
+                    <MoonStar className={`w-6 h-6 ${filterTrainerOff && !allOff && filterTrainerColor ? filterTrainerColor.offText : 'text-neutral-700'}`} />
+                    <span className={`text-[11px] font-semibold uppercase tracking-widest capitalize ${filterTrainerOff && !allOff && filterTrainerColor ? filterTrainerColor.offText : 'text-neutral-700'}`}>
+                      {filterTrainerOff && !allOff ? `${filterTrainer} off` : 'Day off'}
                     </span>
                   </div>
                 )}
@@ -421,14 +445,14 @@ export function PlanningCalendar() {
                     <div key={s} data-slot={s} style={{ height: SLOT_PX }}
                       className={`border-b transition-colors relative
                         ${isHalfHour ? 'border-dashed border-neutral-800/40' : 'border-neutral-800/60'}
-                        ${(bothOff || filterTrainerOff) ? 'cursor-not-allowed' : 'cursor-pointer'}
-                        ${selected ? 'bg-white/10' : (!bothOff && !filterTrainerOff) ? 'hover:bg-white/[0.025]' : ''}
+                        ${blockSlots ? 'cursor-not-allowed' : 'cursor-pointer'}
+                        ${selected ? 'bg-white/10' : !blockSlots ? 'hover:bg-white/[0.025]' : ''}
                       `}
-                      onMouseDown={() => { if (!bothOff && !filterTrainerOff) onSlotMouseDown(di, s) }}
+                      onMouseDown={() => { if (!blockSlots) onSlotMouseDown(di, s) }}
                       onMouseEnter={() => onSlotMouseEnter(di, s)}
-                      onTouchStart={e => { if (!bothOff && !filterTrainerOff) onSlotTouchStart(e, di, s) }}
+                      onTouchStart={e => { if (!blockSlots) onSlotTouchStart(e, di, s) }}
                       onTouchMove={e => onSlotTouchMove(e, di)}
-                      onTouchEnd={() => { if (!bothOff && !filterTrainerOff) onSlotTouchEnd(di) }}
+                      onTouchEnd={() => { if (!blockSlots) onSlotTouchEnd(di) }}
                     >
                       {selected && s === Math.min(drag!.startSlot, drag!.endSlot) && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -447,17 +471,18 @@ export function PlanningCalendar() {
                   const endMin = timeToMin(ev.end_time.slice(0, 5))
                   const top = ((startMin - H_START * 60) / SLOT_MINUTES) * SLOT_PX
                   const height = Math.max(((endMin - startMin) / SLOT_MINUTES) * SLOT_PX - 2, 24)
-                  const st = TRAINER_STYLE[ev.trainer] ?? TRAINER_STYLE.ali
-                  const trainerOff = (ev.trainer === 'ali' && aliOff) || (ev.trainer === 'samih' && samihOff)
+                  const st = getTrainerStyle(ev.trainer)
+                  const trainerOff = ev.trainer !== 'both' && isTrainerOff(dateStr, ev.trainer)
                   const showOffBadge = trainerOff && filterTrainer === null
+                  const displayName = ev.trainer === 'both' ? 'All trainers' : ev.trainer
                   return (
                     <div key={ev.id} style={{ top, height, left: 3, right: 3 }}
                       className={`absolute rounded-lg px-2 py-1 cursor-pointer hover:brightness-110 transition-all z-20 overflow-hidden ${st.card} ${trainerOff ? 'opacity-40 grayscale-[40%]' : ''}`}
                       onMouseDown={e => e.stopPropagation()}
                       onClick={e => { e.stopPropagation(); setModal({ open: true, date: new Date(ev.date + 'T00:00:00'), event: ev }) }}>
                       <div className="flex items-center gap-1 leading-none mb-0.5">
-                        <p className={`text-[10px] font-bold uppercase tracking-wide ${st.name}`}>
-                          {ev.trainer === 'ali' ? 'Ali' : ev.trainer === 'samih' ? 'Samih' : 'Ali · Samih'}
+                        <p className={`text-[10px] font-bold uppercase tracking-wide capitalize ${st.nameText}`}>
+                          {displayName}
                         </p>
                         {showOffBadge && <MoonStar className="w-2.5 h-2.5 text-neutral-400 shrink-0" />}
                       </div>
@@ -492,10 +517,17 @@ export function PlanningCalendar() {
       )}
 
       <EventModal
-        open={modal.open} date={modal.date} initialStart={modal.initialStart} initialEnd={modal.initialEnd} event={modal.event}
+        open={modal.open} date={modal.date} initialStart={modal.initialStart} initialEnd={modal.initialEnd}
+        event={modal.event} trainers={trainers}
         onClose={() => setModal({ open: false, date: null })}
         onSave={handleSave}
         onDelete={modal.event ? handleDelete : undefined}
+      />
+
+      <AddTrainerModal
+        open={addTrainerOpen}
+        onClose={() => setAddTrainerOpen(false)}
+        onAdded={fetchTrainers}
       />
     </div>
   )
