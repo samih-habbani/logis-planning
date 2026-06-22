@@ -5,13 +5,13 @@ import "./globals.css";
 const geist = Geist({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Planning Formateurs — Logiscool UAE",
-  description: "Gestion des emplois du temps pour les formateurs Logiscool",
+  title: "Trainer Schedule — Logiscool UAE",
+  description: "Trainer schedule management for Logiscool UAE",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className="dark h-full">
+    <html lang="en" className="dark h-full">
       <body className={`${geist.className} bg-neutral-950 text-neutral-100 min-h-full`}>
         {children}
       </body>

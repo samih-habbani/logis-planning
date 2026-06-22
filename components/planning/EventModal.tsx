@@ -83,16 +83,16 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
   }
 
   async function handleSave() {
-    if (!form.trainer) { setError('Sélectionnez un formateur.'); return }
-    if (!form.center) { setError('Sélectionnez un centre.'); return }
-    if (form.end_time <= form.start_time) { setError("L'heure de fin doit être après le début."); return }
+    if (!form.trainer) { setError('Please select a trainer.'); return }
+    if (!form.center) { setError('Please select a center.'); return }
+    if (form.end_time <= form.start_time) { setError('End time must be after start time.'); return }
     setSaving(true); setError(null)
-    try { await onSave(form) } catch { setError('Erreur lors de l\'enregistrement.') } finally { setSaving(false) }
+    try { await onSave(form) } catch { setError('Failed to save. Please try again.') } finally { setSaving(false) }
   }
 
   async function handleDelete() {
-    if (!onDelete || !confirm('Supprimer ce cours ?')) return
-    try { await onDelete() } catch { setError('Erreur lors de la suppression.') }
+    if (!onDelete || !confirm('Delete this session?')) return
+    try { await onDelete() } catch { setError('Failed to delete. Please try again.') }
   }
 
   const dateLabel = date ? `${DAYS_FR[date.getDay()]} ${date.getDate()} ${MONTHS_FR[date.getMonth()]}` : ''
@@ -114,7 +114,7 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-neutral-800">
           <div>
-            <h2 className="text-base font-semibold text-white">{event ? 'Modifier le cours' : 'Nouveau cours'}</h2>
+            <h2 className="text-base font-semibold text-white">{event ? 'Edit session' : 'New session'}</h2>
             <p className="text-xs text-neutral-500 mt-0.5">{dateLabel}</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors">
@@ -127,7 +127,7 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
 
           {/* Trainer */}
           <div>
-            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Formateur</p>
+            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Trainer</p>
             <div className="grid grid-cols-2 gap-2">
               {(['ali', 'samih'] as Trainer[]).map((t, i) => (
                 <button key={t} ref={i === 0 ? firstBtnRef : undefined} onClick={() => set('trainer', t)}
@@ -142,7 +142,7 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
 
           {/* Center */}
           <div>
-            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Centre</p>
+            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Center</p>
             <div className="flex gap-2 flex-wrap">
               {(['city_mall', 'oasis', 'mirdif'] as Center[]).map(c => (
                 <button key={c} onClick={() => set('center', c)}
@@ -157,7 +157,7 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
 
           {/* Time */}
           <div>
-            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Horaire</p>
+            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Time</p>
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <select value={form.start_time} onChange={e => set('start_time', e.target.value)}
                 className="bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500">
@@ -173,7 +173,7 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
 
           {/* Curriculum */}
           <div>
-            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">N° Curriculum</p>
+            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Curriculum #</p>
             <input type="text" value={form.curriculum} onChange={e => set('curriculum', e.target.value)}
               placeholder="ex: SC-301"
               className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500 placeholder:text-neutral-600" />
@@ -181,17 +181,17 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
 
           {/* Student */}
           <div>
-            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Nom de l'élève</p>
+            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Student name</p>
             <input type="text" value={form.student_name} onChange={e => set('student_name', e.target.value)}
-              placeholder="Prénom Nom"
+              placeholder="First Last"
               className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500 placeholder:text-neutral-600" />
           </div>
 
           {/* Note */}
           <div>
-            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Note (optionnel)</p>
+            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Note (optional)</p>
             <textarea value={form.note} onChange={e => set('note', e.target.value)}
-              placeholder="Remarques, matériel, informations..." rows={3}
+              placeholder="Remarks, materials, additional info..." rows={3}
               className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500 placeholder:text-neutral-600 resize-none" />
           </div>
 
@@ -207,11 +207,11 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
           )}
           <div className="flex-1" />
           <button onClick={onClose} className="px-4 py-2 text-sm text-neutral-400 hover:text-white rounded-lg hover:bg-neutral-800 transition-colors">
-            Annuler
+            Cancel
           </button>
           <button onClick={handleSave} disabled={saving}
             className="px-4 py-2 text-sm font-medium bg-white text-neutral-900 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50">
-            {saving ? 'Enregistrement...' : event ? 'Mettre à jour' : 'Ajouter'}
+            {saving ? 'Saving...' : event ? 'Update' : 'Add'}
           </button>
         </div>
       </div>

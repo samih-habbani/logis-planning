@@ -31,10 +31,10 @@ export const CENTER_LABELS: Record<Center, string> = {
   mirdif: 'Mirdif',
 }
 
-export const DAYS_FR = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+export const DAYS_FR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export const MONTHS_FR = [
-  'Janvier','Février','Mars','Avril','Mai','Juin',
-  'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December',
 ]
 
 export const H_START = 8

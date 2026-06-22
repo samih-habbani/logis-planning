@@ -210,14 +210,14 @@ export function PlanningCalendar() {
           onClick={() => { setWeekOffset(0); setActiveMobDay(new Date().getDay() === 0 ? 6 : new Date().getDay() - 1) }}
           className="px-3 py-1.5 text-xs font-medium bg-white text-neutral-900 rounded-lg hover:bg-neutral-200 transition-colors"
         >
-          Aujourd'hui
+          Today
         </button>
         <div className="hidden sm:flex items-center gap-4 ml-auto text-xs text-neutral-500 flex-wrap">
           {[['bg-sky-500','Ali'],['bg-violet-500','Samih'],['bg-amber-500/60','City Mall'],['bg-emerald-500/60','Oasis'],['bg-rose-500/60','Mirdif']].map(([bg, label]) => (
             <div key={label} className="flex items-center gap-1.5"><div className={`w-2.5 h-2.5 rounded-sm ${bg}`} />{label}</div>
           ))}
           <span className="text-neutral-700">·</span>
-          <span className="text-neutral-600 italic">Glisser pour sélectionner une durée</span>
+          <span className="text-neutral-600 italic">Drag to select duration</span>
         </div>
       </div>
 
@@ -371,7 +371,7 @@ export function PlanningCalendar() {
 
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <p className="text-xs text-neutral-600">Chargement...</p>
+          <p className="text-xs text-neutral-600">Loading...</p>
         </div>
       )}
 

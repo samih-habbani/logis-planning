@@ -11,7 +11,7 @@ export default function Home() {
           </div>
           <span className="font-semibold text-white tracking-tight">Logiscool</span>
           <span className="text-neutral-600">·</span>
-          <span className="text-sm text-neutral-400 font-medium">Planning Formateurs</span>
+          <span className="text-sm text-neutral-400 font-medium">Trainer Schedule</span>
         </div>
       </header>
 

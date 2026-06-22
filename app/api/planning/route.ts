@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const { date, trainer, center, start_time, end_time, curriculum, student_name, note } = body
 
   if (!date || !trainer || !center || !start_time || !end_time)
-    return NextResponse.json({ error: 'Champs obligatoires manquants.' }, { status: 400 })
+    return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
 
   const supabase = await createSupabaseServerClient()
   const { data, error } = await supabase
