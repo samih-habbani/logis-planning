@@ -43,18 +43,18 @@ const CENTER_BADGE = {
 }
 
 interface DragState { dayIdx: number; startSlot: number; endSlot: number }
-interface DayOff { id: string; date: string; note?: string }
+interface DayOff { id: string; date: string; trainer: Trainer }
 
 const TRAINER_FILTERS: { value: Trainer | null; label: string; cls: string; activeCls: string }[] = [
-  { value: null,    label: 'All',   cls: 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500', activeCls: 'bg-white text-neutral-900 border-white' },
-  { value: 'ali',   label: 'Ali',   cls: 'border-neutral-700 text-neutral-400 hover:text-sky-300 hover:border-sky-600',    activeCls: 'bg-sky-500/15 text-sky-300 border-sky-500' },
-  { value: 'samih', label: 'Samih', cls: 'border-neutral-700 text-neutral-400 hover:text-violet-300 hover:border-violet-600', activeCls: 'bg-violet-500/15 text-violet-300 border-violet-500' },
+  { value: null,    label: 'All',   cls: 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500',         activeCls: 'bg-white text-neutral-900 border-white' },
+  { value: 'ali',   label: 'Ali',   cls: 'border-neutral-700 text-neutral-400 hover:text-sky-300 hover:border-sky-600',           activeCls: 'bg-sky-500/15 text-sky-300 border-sky-500' },
+  { value: 'samih', label: 'Samih', cls: 'border-neutral-700 text-neutral-400 hover:text-violet-300 hover:border-violet-600',     activeCls: 'bg-violet-500/15 text-violet-300 border-violet-500' },
 ]
 const CENTER_FILTERS: { value: Center | null; label: string; cls: string; activeCls: string }[] = [
-  { value: null,       label: 'All centers',cls: 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500',     activeCls: 'bg-white text-neutral-900 border-white' },
-  { value: 'city_mall',label: 'City Mall',  cls: 'border-neutral-700 text-neutral-400 hover:text-amber-300 hover:border-amber-600',   activeCls: 'bg-amber-500/15 text-amber-300 border-amber-500' },
-  { value: 'oasis',    label: 'Oasis',      cls: 'border-neutral-700 text-neutral-400 hover:text-emerald-300 hover:border-emerald-600',activeCls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500' },
-  { value: 'mirdif',   label: 'Mirdif',     cls: 'border-neutral-700 text-neutral-400 hover:text-rose-300 hover:border-rose-600',     activeCls: 'bg-rose-500/15 text-rose-300 border-rose-500' },
+  { value: null,        label: 'All centers', cls: 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500',      activeCls: 'bg-white text-neutral-900 border-white' },
+  { value: 'city_mall', label: 'City Mall',   cls: 'border-neutral-700 text-neutral-400 hover:text-amber-300 hover:border-amber-600',    activeCls: 'bg-amber-500/15 text-amber-300 border-amber-500' },
+  { value: 'oasis',     label: 'Oasis',       cls: 'border-neutral-700 text-neutral-400 hover:text-emerald-300 hover:border-emerald-600',activeCls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500' },
+  { value: 'mirdif',    label: 'Mirdif',      cls: 'border-neutral-700 text-neutral-400 hover:text-rose-300 hover:border-rose-600',      activeCls: 'bg-rose-500/15 text-rose-300 border-rose-500' },
 ]
 
 export function PlanningCalendar() {
@@ -68,10 +68,11 @@ export function PlanningCalendar() {
   const [loading, setLoading] = useState(true)
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [modal, setModal] = useState<{ open: boolean; date: Date | null; initialStart?: string; initialEnd?: string; event?: PlanningEvent | null }>({ open: false, date: null })
+  const [dayOffPopup, setDayOffPopup] = useState<string | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const isDragging = useRef(false)
-  const touchStartY = useRef<number | null>(null)
   const swipeTouchStartX = useRef<number | null>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(getMonday(addDays(new Date(), weekOffset * 7)), i))
 
@@ -109,6 +110,18 @@ export function PlanningCalendar() {
     tick(); const t = setInterval(tick, 60_000); return () => clearInterval(t)
   }, [])
 
+  // Close popup on outside click
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        setDayOffPopup(null)
+      }
+    }
+    if (dayOffPopup) document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [dayOffPopup])
+
+  // Cancel drag on mouseup anywhere
   useEffect(() => {
     function onMouseUp() {
       if (!isDragging.current || !drag) { isDragging.current = false; return }
@@ -124,15 +137,15 @@ export function PlanningCalendar() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drag])
 
-  async function toggleDayOff(dateStr: string) {
-    const existing = dayOffs.find(d => d.date === dateStr)
+  async function toggleTrainerDayOff(dateStr: string, trainer: Trainer) {
+    const existing = dayOffs.find(d => d.date === dateStr && d.trainer === trainer)
     if (existing) {
       await fetch(`/api/day-offs/${existing.id}`, { method: 'DELETE' })
     } else {
       await fetch('/api/day-offs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: dateStr }),
+        body: JSON.stringify({ date: dateStr, trainer }),
       })
     }
     fetchAll()
@@ -161,24 +174,20 @@ export function PlanningCalendar() {
     fetchAll()
   }
 
-  function onSlotMouseDown(dayIdx: number, slot: number) {
-    isDragging.current = true
-    setDrag({ dayIdx, startSlot: slot, endSlot: slot })
-  }
+  function onSlotMouseDown(dayIdx: number, slot: number) { isDragging.current = true; setDrag({ dayIdx, startSlot: slot, endSlot: slot }) }
   function onSlotMouseEnter(dayIdx: number, slot: number) {
     if (!isDragging.current || !drag || drag.dayIdx !== dayIdx) return
     setDrag(d => d ? { ...d, endSlot: slot } : d)
   }
   function onSlotTouchStart(e: React.TouchEvent, dayIdx: number, slot: number) {
-    touchStartY.current = e.touches[0].clientY
-    isDragging.current = true
-    setDrag({ dayIdx, startSlot: slot, endSlot: slot })
+    isDragging.current = true; setDrag({ dayIdx, startSlot: slot, endSlot: slot })
+    void e
   }
   function onSlotTouchMove(e: React.TouchEvent, dayIdx: number) {
     if (!isDragging.current || !drag) return
     const el = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY)
-    const slotAttr = el?.closest('[data-slot]')?.getAttribute('data-slot')
-    if (slotAttr != null && drag.dayIdx === dayIdx) setDrag(d => d ? { ...d, endSlot: parseInt(slotAttr) } : d)
+    const attr = el?.closest('[data-slot]')?.getAttribute('data-slot')
+    if (attr != null && drag.dayIdx === dayIdx) setDrag(d => d ? { ...d, endSlot: parseInt(attr) } : d)
   }
   function onSlotTouchEnd(dayIdx: number) {
     if (!isDragging.current || !drag) { isDragging.current = false; return }
@@ -193,9 +202,6 @@ export function PlanningCalendar() {
     return slot >= Math.min(drag.startSlot, drag.endSlot) && slot <= Math.max(drag.startSlot, drag.endSlot)
   }
 
-  const todayStr = toDateKey(new Date())
-  const cols = isMobile ? 1 : 7
-
   function filteredEvents(dateStr: string) {
     return events.filter(e =>
       e.date === dateStr &&
@@ -204,10 +210,13 @@ export function PlanningCalendar() {
     )
   }
 
+  const todayStr = toDateKey(new Date())
+  const cols = isMobile ? 1 : 7
+
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Nav */}
-      <div className="flex items-center gap-3 flex-wrap mb-4 flex-shrink-0">
+      <div className="flex items-center gap-3 flex-wrap mb-3 flex-shrink-0">
         <div className="flex items-center gap-1 bg-neutral-900 border border-neutral-800 rounded-xl p-1">
           <button onClick={() => setWeekOffset(o => o - 1)} className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors" aria-label="Previous week">
             <ChevronLeft className="w-4 h-4" />
@@ -224,13 +233,7 @@ export function PlanningCalendar() {
           Today
         </button>
         <div className="hidden sm:flex items-center gap-4 ml-auto text-xs text-neutral-500 flex-wrap">
-          {[['bg-sky-500','Ali'],['bg-violet-500','Samih'],['bg-amber-500/60','City Mall'],['bg-emerald-500/60','Oasis'],['bg-rose-500/60','Mirdif']].map(([bg, label]) => (
-            <div key={label} className="flex items-center gap-1.5"><div className={`w-2.5 h-2.5 rounded-sm ${bg}`} />{label}</div>
-          ))}
-          <span className="text-neutral-700">·</span>
-          <span className="text-neutral-600 italic">Drag to select duration</span>
-          <span className="text-neutral-700">·</span>
-          <div className="flex items-center gap-1.5"><MoonStar className="w-3 h-3 text-neutral-600" /><span className="text-neutral-600">Click day to mark off</span></div>
+          <div className="flex items-center gap-1.5"><MoonStar className="w-3 h-3" /><span>Click day header to mark day off</span></div>
         </div>
       </div>
 
@@ -246,7 +249,7 @@ export function PlanningCalendar() {
           ))}
         </div>
         <div className="w-px h-4 bg-neutral-800 hidden sm:block" />
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[10px] font-semibold text-neutral-600 uppercase tracking-widest mr-1">Center</span>
           {CENTER_FILTERS.map(f => (
             <button key={String(f.value)} onClick={() => setFilterCenter(f.value)}
@@ -263,13 +266,14 @@ export function PlanningCalendar() {
           {days.map((d, i) => {
             const isTod = toDateKey(d) === todayStr
             const isAct = activeMobDay === i
-            const isOff = dayOffs.some(o => o.date === toDateKey(d))
+            const dateStr = toDateKey(d)
+            const offs = dayOffs.filter(o => o.date === dateStr)
             return (
               <button key={i} onClick={() => setActiveMobDay(i)}
-                className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl transition-all ${isAct ? 'bg-white text-neutral-900' : 'text-neutral-500'} ${isOff && !isAct ? 'opacity-40' : ''}`}>
+                className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl transition-all ${isAct ? 'bg-white text-neutral-900' : 'text-neutral-500'}`}>
                 <span className={`text-[10px] font-semibold uppercase ${isTod && !isAct ? 'text-amber-400' : ''}`}>{DAYS_FR[d.getDay()]}</span>
                 <span className={`text-lg font-bold ${isTod && !isAct ? 'text-amber-400' : ''}`}>{d.getDate()}</span>
-                {isOff && <MoonStar className="w-3 h-3 mt-0.5 text-neutral-500" />}
+                {offs.length > 0 && <MoonStar className="w-3 h-3 mt-0.5 text-neutral-500" />}
               </button>
             )
           })}
@@ -297,28 +301,61 @@ export function PlanningCalendar() {
             if (isMobile && i !== activeMobDay) return null
             const isTod = toDateKey(d) === todayStr
             const dateStr = toDateKey(d)
-            const isOff = dayOffs.some(o => o.date === dateStr)
+            const aliOff = dayOffs.some(o => o.date === dateStr && o.trainer === 'ali')
+            const samihOff = dayOffs.some(o => o.date === dateStr && o.trainer === 'samih')
+            const isPopupOpen = dayOffPopup === dateStr
+
             return (
-              <div key={i}
-                className={`py-2.5 text-center border-r border-neutral-800 last:border-r-0 cursor-pointer group transition-colors ${isOff ? 'bg-neutral-800/60' : 'hover:bg-neutral-800/30'}`}
-                onClick={() => toggleDayOff(dateStr)}
-                title={isOff ? 'Click to remove day off' : 'Click to mark as day off'}
-              >
-                <div className={`text-[10px] font-bold uppercase tracking-widest ${isOff ? 'text-neutral-600' : isTod ? 'text-amber-400' : 'text-neutral-500'}`}>
-                  {DAYS_FR[d.getDay()]}
-                </div>
-                <div className={`text-xl font-bold mt-0.5 ${isOff ? 'text-neutral-600' : isTod ? 'text-amber-400' : 'text-white'}`}>
-                  {d.getDate()}
-                </div>
-                {isOff
-                  ? <div className="flex items-center justify-center gap-1 mt-1">
-                      <MoonStar className="w-3 h-3 text-neutral-500" />
-                      <span className="text-[9px] text-neutral-500 font-medium uppercase tracking-wide">Day off</span>
+              <div key={i} className="relative border-r border-neutral-800 last:border-r-0">
+                {/* Header cell */}
+                <div
+                  className={`py-2 text-center cursor-pointer transition-colors group ${isPopupOpen ? 'bg-neutral-800' : 'hover:bg-neutral-800/40'}`}
+                  onClick={e => { e.stopPropagation(); setDayOffPopup(isPopupOpen ? null : dateStr) }}
+                >
+                  <div className={`text-[10px] font-bold uppercase tracking-widest ${isTod ? 'text-amber-400' : 'text-neutral-500'}`}>
+                    {DAYS_FR[d.getDay()]}
+                  </div>
+                  <div className={`text-xl font-bold mt-0.5 ${isTod ? 'text-amber-400' : 'text-white'}`}>
+                    {d.getDate()}
+                  </div>
+                  {/* Day-off badges */}
+                  {(aliOff || samihOff) ? (
+                    <div className="flex items-center justify-center gap-1 mt-1 flex-wrap px-1">
+                      {aliOff && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-500/20 text-sky-400 flex items-center gap-0.5"><MoonStar className="w-2.5 h-2.5" />Ali</span>}
+                      {samihOff && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-400 flex items-center gap-0.5"><MoonStar className="w-2.5 h-2.5" />Samih</span>}
                     </div>
-                  : <div className="h-4 mt-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="text-[9px] text-neutral-600">mark off</span>
+                  ) : (
+                    <div className="h-5 mt-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-[9px] text-neutral-600 flex items-center gap-0.5"><MoonStar className="w-2.5 h-2.5" />day off</span>
                     </div>
-                }
+                  )}
+                </div>
+
+                {/* Day-off popup */}
+                {isPopupOpen && (
+                  <div ref={popupRef} className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-neutral-800 border border-neutral-700 rounded-xl shadow-xl p-3 w-44"
+                    onClick={e => e.stopPropagation()}>
+                    <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Mark as day off</p>
+                    <div className="flex flex-col gap-1.5">
+                      {(['ali', 'samih'] as Trainer[]).map(t => {
+                        const isOff = dayOffs.some(o => o.date === dateStr && o.trainer === t)
+                        return (
+                          <button key={t} onClick={() => toggleTrainerDayOff(dateStr, t)}
+                            className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all border ${
+                              isOff
+                                ? t === 'ali' ? 'bg-sky-500/15 border-sky-500/50 text-sky-300' : 'bg-violet-500/15 border-violet-500/50 text-violet-300'
+                                : 'border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500'
+                            }`}>
+                            <span>{t === 'ali' ? 'Ali' : 'Samih'}</span>
+                            {isOff
+                              ? <MoonStar className="w-3.5 h-3.5" />
+                              : <span className="text-neutral-600 text-[10px]">off</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -349,17 +386,19 @@ export function PlanningCalendar() {
             const dateStr = toDateKey(day)
             const isTod = dateStr === todayStr
             const isWknd = day.getDay() === 0 || day.getDay() === 6
-            const isOff = dayOffs.some(o => o.date === dateStr)
+            const aliOff = dayOffs.some(o => o.date === dateStr && o.trainer === 'ali')
+            const samihOff = dayOffs.some(o => o.date === dateStr && o.trainer === 'samih')
+            const bothOff = aliOff && samihOff
             const dayEvents = filteredEvents(dateStr)
 
             return (
-              <div key={di} className={`relative border-r border-neutral-800 last:border-r-0 ${isOff ? 'bg-neutral-950/60' : isWknd ? 'bg-neutral-950/30' : ''}`}>
+              <div key={di} className={`relative border-r border-neutral-800 last:border-r-0 ${isWknd && !bothOff ? 'bg-neutral-950/30' : ''} ${bothOff ? 'bg-neutral-950/60' : ''}`}>
 
-                {/* Day-off overlay */}
-                {isOff && (
+                {/* Full day-off overlay (both off) */}
+                {bothOff && (
                   <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center gap-2"
-                    style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(255,255,255,0.015) 8px, rgba(255,255,255,0.015) 16px)' }}>
-                    <MoonStar className="w-6 h-6 text-neutral-700" />
+                    style={{ backgroundImage: 'repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(255,255,255,0.012) 8px,rgba(255,255,255,0.012) 16px)' }}>
+                    <MoonStar className="w-5 h-5 text-neutral-700" />
                     <span className="text-[10px] font-semibold text-neutral-700 uppercase tracking-widest">Day off</span>
                   </div>
                 )}
@@ -369,20 +408,17 @@ export function PlanningCalendar() {
                   const selected = isDragSelected(di, s)
                   const isHalfHour = (s % 2) === 1
                   return (
-                    <div
-                      key={s}
-                      data-slot={s}
-                      style={{ height: SLOT_PX }}
+                    <div key={s} data-slot={s} style={{ height: SLOT_PX }}
                       className={`border-b transition-colors relative
                         ${isHalfHour ? 'border-dashed border-neutral-800/40' : 'border-neutral-800/60'}
-                        ${isOff ? 'cursor-not-allowed' : 'cursor-pointer'}
-                        ${selected ? 'bg-white/10' : !isOff ? 'hover:bg-white/[0.025]' : ''}
+                        ${bothOff ? 'cursor-not-allowed' : 'cursor-pointer'}
+                        ${selected ? 'bg-white/10' : !bothOff ? 'hover:bg-white/[0.025]' : ''}
                       `}
-                      onMouseDown={() => { if (!isOff) onSlotMouseDown(di, s) }}
+                      onMouseDown={() => { if (!bothOff) onSlotMouseDown(di, s) }}
                       onMouseEnter={() => onSlotMouseEnter(di, s)}
-                      onTouchStart={e => { if (!isOff) onSlotTouchStart(e, di, s) }}
+                      onTouchStart={e => { if (!bothOff) onSlotTouchStart(e, di, s) }}
                       onTouchMove={e => onSlotTouchMove(e, di)}
-                      onTouchEnd={() => { if (!isOff) onSlotTouchEnd(di) }}
+                      onTouchEnd={() => { if (!bothOff) onSlotTouchEnd(di) }}
                     >
                       {selected && s === Math.min(drag!.startSlot, drag!.endSlot) && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -401,13 +437,14 @@ export function PlanningCalendar() {
                   const endMin = timeToMin(ev.end_time.slice(0, 5))
                   const top = ((startMin - H_START * 60) / SLOT_MINUTES) * SLOT_PX
                   const height = Math.max(((endMin - startMin) / SLOT_MINUTES) * SLOT_PX - 2, 24)
-                  const s = TRAINER_STYLE[ev.trainer] ?? TRAINER_STYLE.ali
+                  const st = TRAINER_STYLE[ev.trainer] ?? TRAINER_STYLE.ali
+                  const trainerOff = (ev.trainer === 'ali' && aliOff) || (ev.trainer === 'samih' && samihOff)
                   return (
                     <div key={ev.id} style={{ top, height, left: 3, right: 3 }}
-                      className={`absolute rounded-lg px-2 py-1 cursor-pointer hover:brightness-110 transition-all z-20 overflow-hidden ${s.card}`}
+                      className={`absolute rounded-lg px-2 py-1 cursor-pointer hover:brightness-110 transition-all z-20 overflow-hidden ${st.card} ${trainerOff ? 'opacity-30' : ''}`}
                       onMouseDown={e => e.stopPropagation()}
                       onClick={e => { e.stopPropagation(); setModal({ open: true, date: new Date(ev.date + 'T00:00:00'), event: ev }) }}>
-                      <p className={`text-[10px] font-bold uppercase tracking-wide leading-none mb-0.5 ${s.name}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-wide leading-none mb-0.5 ${st.name}`}>
                         {ev.trainer === 'ali' ? 'Ali' : 'Samih'}
                       </p>
                       {ev.student_name && <p className="text-[11px] font-medium truncate leading-tight">{ev.student_name}</p>}

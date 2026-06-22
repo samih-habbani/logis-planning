@@ -17,13 +17,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { date, note } = await req.json()
-  if (!date) return NextResponse.json({ error: 'Date is required.' }, { status: 400 })
+  const { date, trainer, note } = await req.json()
+  if (!date || !trainer) return NextResponse.json({ error: 'Date and trainer are required.' }, { status: 400 })
 
   const supabase = await createSupabaseServerClient()
   const { data, error } = await supabase
     .from('planning_day_offs')
-    .insert({ date, note })
+    .insert({ date, trainer, note })
     .select()
     .single()
 
