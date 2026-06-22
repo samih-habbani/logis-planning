@@ -1,4 +1,4 @@
-export type Trainer = 'ali' | 'samih'
+export type Trainer = 'ali' | 'samih' | 'both'
 export type Center = 'city_mall' | 'oasis' | 'mirdif'
 
 export interface PlanningEvent {
@@ -24,7 +24,7 @@ export interface EventFormData {
   note: string
 }
 
-export const TRAINER_LABELS: Record<Trainer, string> = { ali: 'Ali', samih: 'Samih' }
+export const TRAINER_LABELS: Record<Trainer, string> = { ali: 'Ali', samih: 'Samih', both: 'Both' }
 export const CENTER_LABELS: Record<Center, string> = {
   city_mall: 'City Mall',
   oasis: 'Oasis',

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { X, Trash2 } from 'lucide-react'
-import type { PlanningEvent, EventFormData, Trainer, Center } from '@/types/planning'
+import type { PlanningEvent, EventFormData, Center } from '@/types/planning'
+import type { Trainer } from '@/types/planning'
 import { CENTER_LABELS, DAYS_FR, MONTHS_FR, H_START, H_END } from '@/types/planning'
 
 interface Props {
@@ -29,9 +30,10 @@ function buildTimeOptions() {
 
 const TIME_OPTIONS = buildTimeOptions()
 
-const TRAINER_CFG = {
+const TRAINER_CFG: Record<Trainer, { label: string; sel: string }> = {
   ali:   { label: 'Ali',   sel: 'ring-sky-500 bg-sky-500/10 text-sky-300' },
   samih: { label: 'Samih', sel: 'ring-violet-500 bg-violet-500/10 text-violet-300' },
+  both:  { label: 'Both',  sel: 'ring-teal-500 bg-teal-500/10 text-teal-300' },
 }
 const CENTER_CFG = {
   city_mall: { sel: 'ring-amber-500 bg-amber-500/10 text-amber-300' },
@@ -128,8 +130,8 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
           {/* Trainer */}
           <div>
             <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Trainer</p>
-            <div className="grid grid-cols-2 gap-2">
-              {(['ali', 'samih'] as Trainer[]).map((t, i) => (
+            <div className="grid grid-cols-3 gap-2">
+              {(['ali', 'samih', 'both'] as Trainer[]).map((t, i) => (
                 <button key={t} ref={i === 0 ? firstBtnRef : undefined} onClick={() => set('trainer', t)}
                   className={`py-2.5 rounded-lg text-sm font-semibold transition-all ring-1 ${
                     form.trainer === t ? TRAINER_CFG[t].sel : 'ring-neutral-700 text-neutral-400 hover:ring-neutral-500 hover:text-white'

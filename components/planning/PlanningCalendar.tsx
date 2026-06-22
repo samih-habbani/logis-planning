@@ -35,6 +35,7 @@ function weekLabel(mon: Date) {
 const TRAINER_STYLE = {
   ali:   { card: 'bg-sky-500/10 border border-sky-500/30 text-sky-200',          name: 'text-sky-400' },
   samih: { card: 'bg-violet-500/10 border border-violet-500/30 text-violet-200', name: 'text-violet-400' },
+  both:  { card: 'bg-teal-500/10 border border-teal-500/30 text-teal-200',       name: 'text-teal-400' },
 }
 const CENTER_BADGE = {
   city_mall: 'bg-amber-500/20 text-amber-300',
@@ -205,7 +206,7 @@ export function PlanningCalendar() {
   function filteredEvents(dateStr: string) {
     return events.filter(e =>
       e.date === dateStr &&
-      (filterTrainer === null || e.trainer === filterTrainer) &&
+      (filterTrainer === null || e.trainer === filterTrainer || e.trainer === 'both') &&
       (filterCenter === null || e.center === filterCenter)
     )
   }
@@ -456,7 +457,7 @@ export function PlanningCalendar() {
                       onClick={e => { e.stopPropagation(); setModal({ open: true, date: new Date(ev.date + 'T00:00:00'), event: ev }) }}>
                       <div className="flex items-center gap-1 leading-none mb-0.5">
                         <p className={`text-[10px] font-bold uppercase tracking-wide ${st.name}`}>
-                          {ev.trainer === 'ali' ? 'Ali' : 'Samih'}
+                          {ev.trainer === 'ali' ? 'Ali' : ev.trainer === 'samih' ? 'Samih' : 'Ali · Samih'}
                         </p>
                         {showOffBadge && <MoonStar className="w-2.5 h-2.5 text-neutral-400 shrink-0" />}
                       </div>
