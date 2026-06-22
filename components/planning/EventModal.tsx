@@ -46,7 +46,7 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
     trainer: null, center: null,
     start_time: `${String(H_START).padStart(2, '0')}:00`,
     end_time: `${String(H_START + 1).padStart(2, '0')}:00`,
-    curriculum: '', student_name: '', note: '',
+    curriculum: '', lesson: '', student_name: '', note: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -61,6 +61,7 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
         start_time: event.start_time.slice(0, 5),
         end_time: event.end_time.slice(0, 5),
         curriculum: event.curriculum ?? '',
+        lesson: event.lesson ?? '',
         student_name: event.student_name ?? '',
         note: event.note ?? '',
       })
@@ -74,7 +75,7 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
         const endM = endMin % 60
         end = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
       }
-      setForm({ trainer: null, center: null, start_time: start, end_time: end, curriculum: '', student_name: '', note: '' })
+      setForm({ trainer: null, center: null, start_time: start, end_time: end, curriculum: '', lesson: '', student_name: '', note: '' })
     }
     setError(null)
     setTimeout(() => firstBtnRef.current?.focus(), 80)
@@ -178,6 +179,14 @@ export function EventModal({ open, date, initialStart, initialEnd, event, onClos
             <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Curriculum #</p>
             <input type="text" value={form.curriculum} onChange={e => set('curriculum', e.target.value)}
               placeholder="ex: SC-301"
+              className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500 placeholder:text-neutral-600" />
+          </div>
+
+          {/* Lesson */}
+          <div>
+            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest mb-2">Lesson #</p>
+            <input type="text" value={form.lesson} onChange={e => set('lesson', e.target.value)}
+              placeholder="ex: 5"
               className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500 placeholder:text-neutral-600" />
           </div>
 

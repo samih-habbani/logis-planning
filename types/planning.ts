@@ -9,6 +9,7 @@ export interface PlanningEvent {
   start_time: string
   end_time: string
   curriculum?: string
+  lesson?: string
   student_name?: string
   note?: string
   created_at?: string
@@ -20,6 +21,7 @@ export interface EventFormData {
   start_time: string
   end_time: string
   curriculum: string
+  lesson: string
   student_name: string
   note: string
 }

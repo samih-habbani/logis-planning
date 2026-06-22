@@ -157,7 +157,7 @@ export function PlanningCalendar() {
     const body = {
       date: toDateKey(modal.date), trainer: data.trainer, center: data.center,
       start_time: data.start_time, end_time: data.end_time,
-      curriculum: data.curriculum || null, student_name: data.student_name || null, note: data.note || null,
+      curriculum: data.curriculum || null, lesson: data.lesson || null, student_name: data.student_name || null, note: data.note || null,
     }
     if (modal.event) {
       await fetch(`/api/planning/${modal.event.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -465,6 +465,7 @@ export function PlanningCalendar() {
                       <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                         <span className={`text-[9px] font-semibold px-1 py-0.5 rounded ${CENTER_BADGE[ev.center]}`}>{CENTER_LABELS[ev.center]}</span>
                         {ev.curriculum && <span className="text-[9px] text-neutral-500">{ev.curriculum}</span>}
+                        {ev.lesson && <span className="text-[9px] text-neutral-500">L{ev.lesson}</span>}
                       </div>
                     </div>
                   )

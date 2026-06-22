@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { date, trainer, center, start_time, end_time, curriculum, student_name, note } = body
+  const { date, trainer, center, start_time, end_time, curriculum, lesson, student_name, note } = body
 
   if (!date || !trainer || !center || !start_time || !end_time)
     return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createSupabaseServerClient()
   const { data, error } = await supabase
     .from('planning_events')
-    .insert({ date, trainer, center, start_time, end_time, curriculum, student_name, note })
+    .insert({ date, trainer, center, start_time, end_time, curriculum, lesson, student_name, note })
     .select()
     .single()
 
