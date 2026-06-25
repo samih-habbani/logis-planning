@@ -33,6 +33,46 @@ function weekLabel(mon: Date) {
   return `${mon.getDate()} ${MONTHS_FR[mon.getMonth()]} – ${sun.getDate()} ${MONTHS_FR[sun.getMonth()]} ${mon.getFullYear()}`
 }
 
+function computeEventLayout(events: PlanningEvent[]): Map<string, { col: number; totalCols: number }> {
+  const sorted = [...events].sort((a, b) => a.start_time.localeCompare(b.start_time))
+  const layout = new Map<string, { col: number; totalCols: number }>()
+  const columns: PlanningEvent[][] = []
+
+  for (const ev of sorted) {
+    const startMin = timeToMin(ev.start_time.slice(0, 5))
+    let placed = false
+    for (let c = 0; c < columns.length; c++) {
+      const last = columns[c][columns[c].length - 1]
+      if (timeToMin(last.end_time.slice(0, 5)) <= startMin) {
+        columns[c].push(ev)
+        layout.set(ev.id, { col: c, totalCols: 0 })
+        placed = true
+        break
+      }
+    }
+    if (!placed) {
+      columns.push([ev])
+      layout.set(ev.id, { col: columns.length - 1, totalCols: 0 })
+    }
+  }
+
+  // For each event, totalCols = max column index among all overlapping events + 1
+  for (const ev of sorted) {
+    const s = timeToMin(ev.start_time.slice(0, 5))
+    const e = timeToMin(ev.end_time.slice(0, 5))
+    let maxCol = layout.get(ev.id)!.col
+    for (const other of sorted) {
+      if (other.id === ev.id) continue
+      const os = timeToMin(other.start_time.slice(0, 5))
+      const oe = timeToMin(other.end_time.slice(0, 5))
+      if (os < e && oe > s) maxCol = Math.max(maxCol, layout.get(other.id)!.col)
+    }
+    layout.set(ev.id, { col: layout.get(ev.id)!.col, totalCols: maxCol + 1 })
+  }
+
+  return layout
+}
+
 const CENTER_BADGE: Record<Center, string> = {
   city_mall: 'bg-amber-500/20 text-amber-300',
   oasis:     'bg-emerald-500/20 text-emerald-300',
@@ -466,7 +506,9 @@ export function PlanningCalendar() {
                 })}
 
                 {/* Events */}
-                {dayEvents.map(ev => {
+                {(() => {
+                  const layout = computeEventLayout(dayEvents)
+                  return dayEvents.map(ev => {
                   const startMin = timeToMin(ev.start_time.slice(0, 5))
                   const endMin = timeToMin(ev.end_time.slice(0, 5))
                   const top = ((startMin - H_START * 60) / SLOT_MINUTES) * SLOT_PX
@@ -475,8 +517,12 @@ export function PlanningCalendar() {
                   const trainerOff = ev.trainer !== 'both' && isTrainerOff(dateStr, ev.trainer)
                   const showOffBadge = trainerOff && filterTrainer === null
                   const displayName = ev.trainer === 'both' ? 'All trainers' : ev.trainer
+                  const { col, totalCols } = layout.get(ev.id) ?? { col: 0, totalCols: 1 }
+                  const pct = 100 / totalCols
+                  const evLeft = `calc(${col * pct}% + 2px)`
+                  const evWidth = `calc(${pct}% - 3px)`
                   return (
-                    <div key={ev.id} style={{ top, height, left: 3, right: 3 }}
+                    <div key={ev.id} style={{ top, height, left: evLeft, width: evWidth }}
                       className={`absolute rounded-lg px-2 py-1 cursor-pointer hover:brightness-110 transition-all z-20 overflow-hidden ${st.card} ${trainerOff ? 'opacity-40 grayscale-[40%]' : ''}`}
                       onMouseDown={e => e.stopPropagation()}
                       onClick={e => { e.stopPropagation(); setModal({ open: true, date: new Date(ev.date + 'T00:00:00'), event: ev }) }}>
@@ -494,7 +540,8 @@ export function PlanningCalendar() {
                       </div>
                     </div>
                   )
-                })}
+                  })
+                })()}
 
                 {/* Now line */}
                 {isTod && nowTop !== null && (
