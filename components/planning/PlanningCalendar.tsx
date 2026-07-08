@@ -122,9 +122,11 @@ export function PlanningCalendar() {
   }
 
   const fetchTrainers = useCallback(async () => {
-    const res = await fetch('/api/trainers')
-    const data = await res.json()
-    setTrainers(Array.isArray(data) ? data : [])
+    try {
+      const res = await fetch('/api/trainers')
+      const data = await res.json()
+      setTrainers(Array.isArray(data) ? data : [])
+    } catch { setTrainers([]) }
   }, [])
 
   const fetchAll = useCallback(async () => {
